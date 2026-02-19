@@ -49,6 +49,27 @@ Then open: <http://localhost:8080>
 
 > Note: if you use `python -m http.server`, the refresh-scrape button cannot work because it needs `POST /api/scrape`.
 
+## Price accuracy note
+
+- The project now starts with an empty `data/prices.json` by default to avoid showing stale or guessed prices.
+- Click **Refresh scraped dataset** to scrape live data.
+- The scraper now reads product cards directly from HTML first (e.g. `card__text`, `rounded-number` + `decimal`, and unit like `st`) before JSON fallback.
+- The scraper also keeps a JSON/script fallback when HTML structures differ between shops.
+- If a website blocks scraping temporarily, the previous dataset is preserved (not overwritten with empty data).
+
+## Alternative scraping method (recommended when blocked)
+
+If direct HTTP requests are blocked, use Playwright browser scraping:
+
+```bash
+pip install playwright
+python -m playwright install chromium
+python scripts/scrape_prices_browser.py
+```
+
+`server.py` now tries the browser scraper first on refresh, and falls back to the HTTP scraper.
+The API response includes an `attempts` array so you can inspect why a method failed.
+
 ## Scraping vegetables dataset
 
 The scraper targets requested category pages:
@@ -60,26 +81,4 @@ Run scraper manually:
 
 ```bash
 python scripts/scrape_prices.py
-```
-
-This rewrites `data/prices.json` with merged products from Colruyt + AH. If scraping yields 0 products (e.g. temporary block), the script keeps the existing dataset file.
-
-## Data model
-
-Source file: `data/prices.json`
-
-Each product uses:
-
-```json
-{
-  "name": "Broccoli",
-  "category": "Vegetables",
-  "unitType": "unit",
-  "quantity": 1,
-  "prices": {
-    "Colruyt": 1.15,
-    "Lidl": null,
-    "Albert Heijn": 1.29
-  }
-}
 ```

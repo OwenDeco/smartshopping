@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Scrape vegetable products for SmartShopping MVP.
 
-Sources requested by user:
+Targets:
 - Albert Heijn vegetables: https://www.ah.be/producten/23421/groenten-aardappelen
 - Colruyt vegetables: https://www.colruyt.be/nl/producten?categories=1675&page=1
-- Lidl: no online catalogue available for this MVP -> always NA.
+- Lidl: unavailable online in this MVP (kept as NA)
 
-The script writes output to data/prices.json in the format expected by app.js.
+Parsing strategy
+- First parse concrete HTML product cards (name + price + unit) where possible.
+- Then parse JSON embedded in script tags as fallback.
+- Keep logic conservative to reduce wrong matches.
 """
 
 from __future__ import annotations
@@ -48,13 +51,44 @@ def fetch_html(url: str) -> str:
 
 
 def clean_name(name: str) -> str:
-    cleaned = re.sub(r"\s+", " ", unescape(name)).strip()
-    return cleaned
+    return re.sub(r"\s+", " ", unescape(name)).strip()
 
 
-def parse_size_from_name(name: str) -> tuple[float, str]:
-    lowered = name.lower()
-    kg = re.search(r"(\d+[\.,]?\d*)\s?kg", lowered)
+def strip_tags(value: str) -> str:
+    return clean_name(re.sub(r"<[^>]+>", " ", value))
+
+
+def parse_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip().replace(",", ".")
+    match = re.search(r"\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    try:
+        return float(match.group())
+    except ValueError:
+        return None
+
+
+def normalize_unit(unit_text: str | None) -> tuple[float, str]:
+    if not unit_text:
+        return 1.0, "unit"
+
+    lowered = unit_text.lower().strip()
+
+    if lowered in {"st", "stuk", "stuks", "pc", "pcs", "unit"}:
+        return 1.0, "unit"
+
+    per_kg = re.search(r"(?:/|per\s*)kg\b", lowered)
+    if per_kg:
+        return 1.0, "kg"
+
+    per_l = re.search(r"(?:/|per\s*)l\b", lowered)
+    if per_l:
+        return 1.0, "l"
+
+    kg = re.search(r"(\d+(?:[\.,]\d+)?)\s?kg\b", lowered)
     if kg:
         return float(kg.group(1).replace(",", ".")), "kg"
 
@@ -62,7 +96,7 @@ def parse_size_from_name(name: str) -> tuple[float, str]:
     if gram:
         return float(gram.group(1)) / 1000.0, "kg"
 
-    liter = re.search(r"(\d+[\.,]?\d*)\s?l\b", lowered)
+    liter = re.search(r"(\d+(?:[\.,]\d+)?)\s?l\b", lowered)
     if liter:
         return float(liter.group(1).replace(",", ".")), "l"
 
@@ -71,6 +105,85 @@ def parse_size_from_name(name: str) -> tuple[float, str]:
         return float(ml.group(1)) / 1000.0, "l"
 
     return 1.0, "unit"
+
+
+def parse_price_parts(card_html: str) -> float | None:
+    whole = re.search(r'class="rounded-number"[^>]*>(\d+)<', card_html)
+    decimal = re.search(r'class="decimal"[^>]*>(\d{1,2})<', card_html)
+    if whole and decimal:
+        return float(f"{whole.group(1)}.{decimal.group(1).zfill(2)}")
+
+    direct = re.search(r"(\d+[\.,]\d{1,2})", card_html)
+    if direct:
+        return float(direct.group(1).replace(",", "."))
+
+    return None
+
+
+def parse_html_cards(html: str) -> list[Product]:
+    products: list[Product] = []
+
+    # 1) Parse Colruyt-style cards from attributes + nested fields.
+    card_blocks = re.findall(
+        r'<article[^>]*class="[^"]*product-grid-item[^"]*"[^>]*>(.*?)</article>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if not card_blocks:
+        card_blocks = re.findall(
+            r'<div[^>]*class="[^"]*product-grid-item[^"]*"[^>]*>(.*?)</div>\s*</div>',
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+
+    for card in card_blocks:
+        name_match = re.search(r'class="card__text"[^>]*>(.*?)<', card, flags=re.DOTALL)
+        if not name_match:
+            continue
+        name = strip_tags(name_match.group(1))
+        if not name:
+            continue
+
+        price = parse_price_parts(card)
+        if price is None:
+            # data attributes sometimes contain exact parsed price
+            data_price = re.search(r'data-tms-product-price="([\d\.,]+)"', card)
+            price = parse_float(data_price.group(1)) if data_price else None
+        if price is None:
+            continue
+
+        unit = None
+        unit_match = re.search(r'class="unit"[^>]*>\s*(.*?)\s*</span>', card, flags=re.DOTALL)
+        if unit_match:
+            unit = strip_tags(unit_match.group(1))
+        if not unit:
+            qty_match = re.search(r'class="card__quantity"[^>]*>(.*?)<', card, flags=re.DOTALL)
+            if qty_match:
+                unit = strip_tags(qty_match.group(1))
+
+        quantity, unit_type = normalize_unit(unit)
+        products.append(Product(name=name, price=price, quantity=quantity, unit_type=unit_type))
+
+    # 2) Generic HTML fallback for cards with product name + unit price text.
+    generic_cards = re.finditer(
+        r'<[^>]+class="[^"]*(?:card|product)[^"]*"[^>]*>(.*?)</[^>]+>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    for m in generic_cards:
+        card = m.group(1)
+        name_m = re.search(r'class="[^"]*(?:card__text|product-title|title)[^"]*"[^>]*>(.*?)<', card, re.DOTALL)
+        price_m = re.search(r'(\d+[\.,]\d{1,2})\s*/\s*([a-zA-Z]+)', card)
+        if not name_m or not price_m:
+            continue
+        name = strip_tags(name_m.group(1))
+        price = parse_float(price_m.group(1))
+        if not name or price is None:
+            continue
+        quantity, unit_type = normalize_unit(price_m.group(2))
+        products.append(Product(name=name, price=price, quantity=quantity, unit_type=unit_type))
+
+    return products
 
 
 def walk_json(node: Any):
@@ -83,73 +196,83 @@ def walk_json(node: Any):
             yield from walk_json(item)
 
 
-def parse_json_ld_products(html: str) -> list[Product]:
+def extract_product_from_node(node: dict[str, Any]) -> Product | None:
+    name = node.get("name") or node.get("title")
+    if not isinstance(name, str):
+        return None
+
+    price_candidates = [
+        node.get("price"),
+        node.get("salesPrice"),
+        node.get("nowPrice"),
+        node.get("currentPrice"),
+    ]
+
+    offers = node.get("offers")
+    if isinstance(offers, dict):
+        price_candidates.append(offers.get("price"))
+
+    price = next((p for p in (parse_float(c) for c in price_candidates) if p is not None), None)
+    if price is None:
+        return None
+
+    unit_candidates = [
+        node.get("unit"),
+        node.get("unitType"),
+        node.get("priceUnit"),
+        node.get("salesUnit"),
+        node.get("displayUnit"),
+        node.get("content"),
+        node.get("description"),
+    ]
+    quantity, unit_type = 1.0, "unit"
+    for unit_candidate in unit_candidates:
+        if not isinstance(unit_candidate, str):
+            continue
+        quantity, unit_type = normalize_unit(unit_candidate)
+        if quantity != 1.0 or unit_type != "unit":
+            break
+
+    return Product(name=clean_name(name), price=price, quantity=quantity, unit_type=unit_type)
+
+
+def parse_products(html: str) -> list[Product]:
     products: list[Product] = []
+
+    # Priority: concrete HTML product-card parsing
+    products.extend(parse_html_cards(html))
+
+    # Fallback: parse JSON from script tags
     scripts = re.findall(
-        r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+        r'<script[^>]*>(.*?)</script>',
         html,
         flags=re.DOTALL | re.IGNORECASE,
     )
+
     for script in scripts:
         raw = script.strip()
         if not raw:
             continue
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
 
-        for node in walk_json(data):
-            if not isinstance(node, dict):
-                continue
-            name = node.get("name")
-            offers = node.get("offers")
-            price = None
-            if isinstance(offers, dict):
-                price = offers.get("price")
-            if name and price is not None:
-                try:
-                    amount = float(str(price).replace(",", "."))
-                except ValueError:
-                    continue
-                quantity, unit_type = parse_size_from_name(str(name))
-                products.append(
-                    Product(name=clean_name(str(name)), price=amount, quantity=quantity, unit_type=unit_type)
-                )
+        json_candidates = []
+        if raw.startswith("{") or raw.startswith("["):
+            json_candidates.append(raw)
+        if "__NEXT_DATA__" in raw:
+            match = re.search(r"__NEXT_DATA__\s*=\s*(\{.*\})\s*;?", raw, flags=re.DOTALL)
+            if match:
+                json_candidates.append(match.group(1))
 
-    return products
-
-
-def parse_regex_fallback(html: str) -> list[Product]:
-    products: list[Product] = []
-    # generic product snippets; catches common e-commerce JSON fragments
-    patterns = [
-        r'"name"\s*:\s*"([^"]{3,120})"[^\{\}]{0,600}?"price"\s*:\s*"?(\d+[\.,]\d{2})"?',
-        r'"title"\s*:\s*"([^"]{3,120})"[^\{\}]{0,600}?"price"\s*:\s*"?(\d+[\.,]\d{2})"?',
-    ]
-
-    seen = set()
-    for pattern in patterns:
-        for match in re.finditer(pattern, html, flags=re.IGNORECASE | re.DOTALL):
-            name = clean_name(match.group(1))
-            if len(name) < 3 or name.lower() in seen:
-                continue
+        for candidate in json_candidates:
             try:
-                amount = float(match.group(2).replace(",", "."))
-            except ValueError:
+                data = json.loads(candidate)
+            except json.JSONDecodeError:
                 continue
-            quantity, unit_type = parse_size_from_name(name)
-            products.append(Product(name=name, price=amount, quantity=quantity, unit_type=unit_type))
-            seen.add(name.lower())
 
-    return products
-
-
-def scrape_shop(url: str) -> list[Product]:
-    html = fetch_html(url)
-    products = parse_json_ld_products(html)
-    if not products:
-        products = parse_regex_fallback(html)
+            for node in walk_json(data):
+                if isinstance(node, dict):
+                    product = extract_product_from_node(node)
+                    if product:
+                        products.append(product)
 
     unique: dict[str, Product] = {}
     for product in products:
@@ -158,6 +281,11 @@ def scrape_shop(url: str) -> list[Product]:
             unique[key] = product
 
     return list(unique.values())
+
+
+def scrape_shop(url: str) -> list[Product]:
+    html = fetch_html(url)
+    return parse_products(html)
 
 
 def to_dataset(colruyt_products: list[Product], ah_products: list[Product]) -> list[dict[str, Any]]:
