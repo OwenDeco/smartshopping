@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Food Price Compare | Colruyt vs Lidl vs Albert Heijn</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">MVP · Belgium Food Shops</p>
+        <h1>Compare food prices side by side</h1>
+        <p class="subtitle">
+          Search products and compare the latest known prices from Colruyt, Lidl,
+          and Albert Heijn, normalized per <strong>kg</strong>, <strong>l</strong>,
+          or <strong>unit</strong>.
+        </p>
+      </header>
+
+      <section class="filters card">
+        <div class="filter-control">
+          <label for="searchInput">Search products</label>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="e.g. broccoli, carrot, cucumber..."
+          />
+        </div>
+
+        <div class="filter-control">
+          <label for="categorySelect">Category</label>
+          <select id="categorySelect">
+            <option value="all">All</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button id="refreshButton" class="refresh-button" type="button">
+            Refresh scraped dataset
+          </button>
+          <div id="loadingIndicator" class="loading hidden" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Scraping in progress…</span>
+          </div>
+        </div>
+
+        <div class="stats" id="stats"></div>
+      </section>
+
+      <section class="card table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Package</th>
+              <th>Per kg/l/unit</th>
+              <th>Colruyt</th>
+              <th>Lidl</th>
+              <th>Albert Heijn</th>
+              <th>Best deal</th>
+            </tr>
+          </thead>
+          <tbody id="priceTableBody"></tbody>
+        </table>
+      </section>
+    </div>
+
+    <template id="noResultsTemplate">
+      <tr>
+        <td colspan="7" class="no-results">
+          No products found for the current search/filter.
+        </td>
+      </tr>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
