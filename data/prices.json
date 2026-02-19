@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Semi-skimmed Milk",
+    "category": "Dairy",
+    "unitType": "l",
+    "quantity": 1,
+    "prices": {
+      "Colruyt": 1.15,
+      "Lidl": 1.09,
+      "Albert Heijn": 1.29
+    }
+  },
+  {
+    "name": "Greek Yogurt",
+    "category": "Dairy",
+    "unitType": "kg",
+    "quantity": 0.5,
+    "prices": {
+      "Colruyt": 2.15,
+      "Lidl": 1.99,
+      "Albert Heijn": null
+    }
+  },
+  {
+    "name": "Spaghetti",
+    "category": "Pantry",
+    "unitType": "kg",
+    "quantity": 0.5,
+    "prices": {
+      "Colruyt": 0.99,
+      "Lidl": 0.95,
+      "Albert Heijn": 1.1
+    }
+  },
+  {
+    "name": "Bananas",
+    "category": "Fruit & Veg",
+    "unitType": "kg",
+    "quantity": 1,
+    "prices": {
+      "Colruyt": 1.89,
+      "Lidl": 1.75,
+      "Albert Heijn": 2.05
+    }
+  },
+  {
+    "name": "Chicken Breast Fillet",
+    "category": "Meat",
+    "unitType": "kg",
+    "quantity": 0.6,
+    "prices": {
+      "Colruyt": 7.2,
+      "Lidl": 6.85,
+      "Albert Heijn": 7.8
+    }
+  },
+  {
+    "name": "Olive Oil",
+    "category": "Pantry",
+    "unitType": "l",
+    "quantity": 0.75,
+    "prices": {
+      "Colruyt": 6.2,
+      "Lidl": null,
+      "Albert Heijn": 6.85
+    }
+  },
+  {
+    "name": "Eggs M",
+    "category": "Dairy",
+    "unitType": "unit",
+    "quantity": 12,
+    "prices": {
+      "Colruyt": 2.79,
+      "Lidl": 2.55,
+      "Albert Heijn": 2.95
+    }
+  },
+  {
+    "name": "Whole Wheat Bread",
+    "category": "Bakery",
+    "unitType": "unit",
+    "quantity": 1,
+    "prices": {
+      "Colruyt": 2.35,
+      "Lidl": 1.99,
+      "Albert Heijn": 2.49
+    }
+  },
+  {
+    "name": "Sparkling Water",
+    "category": "Drinks",
+    "unitType": "l",
+    "quantity": 1.5,
+    "prices": {
+      "Colruyt": 0.69,
+      "Lidl": 0.65,
+      "Albert Heijn": 0.79
+    }
+  },
+  {
+    "name": "Tomato Passata",
+    "category": "Pantry",
+    "unitType": "kg",
+    "quantity": 0.7,
+    "prices": {
+      "Colruyt": 1.49,
+      "Lidl": 1.39,
+      "Albert Heijn": null
+    }
+  }
+]
