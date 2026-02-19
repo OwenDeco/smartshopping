@@ -9,11 +9,6 @@ const formatCurrency = (value) =>
 
 const normalizePrice = (product, shopPrice) => {
   if (shopPrice == null) return null;
-
-  if (product.unitType === 'unit') {
-    return shopPrice / product.quantity;
-  }
-
   return shopPrice / product.quantity;
 };
 
@@ -68,22 +63,31 @@ const createRow = (product) => {
   return tr;
 };
 
+const loadProducts = async () => {
+  const response = await fetch(`data/prices.json?t=${Date.now()}`);
+  return response.json();
+};
+
 const init = async () => {
-  const response = await fetch('data/prices.json');
-  const products = await response.json();
+  let products = await loadProducts();
 
   const searchInput = document.querySelector('#searchInput');
   const categorySelect = document.querySelector('#categorySelect');
   const tableBody = document.querySelector('#priceTableBody');
   const stats = document.querySelector('#stats');
+  const refreshButton = document.querySelector('#refreshButton');
+  const loadingIndicator = document.querySelector('#loadingIndicator');
 
-  const categories = [...new Set(products.map((p) => p.category))].sort();
-  categories.forEach((category) => {
-    const option = document.createElement('option');
-    option.value = category;
-    option.textContent = category;
-    categorySelect.appendChild(option);
-  });
+  const fillCategories = () => {
+    categorySelect.innerHTML = '<option value="all">All</option>';
+    const categories = [...new Set(products.map((p) => p.category))].sort();
+    categories.forEach((category) => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category;
+      categorySelect.appendChild(option);
+    });
+  };
 
   const render = () => {
     const search = searchInput.value.trim().toLowerCase();
@@ -107,9 +111,36 @@ const init = async () => {
     stats.textContent = `${filtered.length} / ${products.length} products shown`;
   };
 
+  const setRefreshingState = (isRefreshing) => {
+    refreshButton.disabled = isRefreshing;
+    loadingIndicator.classList.toggle('hidden', !isRefreshing);
+  };
+
+  const refreshData = async () => {
+    try {
+      setRefreshingState(true);
+      const minimumLoading = new Promise((resolve) => setTimeout(resolve, 800));
+      const response = await fetch('/api/scrape', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Failed to scrape');
+      }
+      const payload = await response.json();
+      await minimumLoading;
+      products = payload.products;
+      fillCategories();
+      render();
+    } catch (error) {
+      alert('Scraping failed. Run the project with `python server.py` and try again.');
+    } finally {
+      setRefreshingState(false);
+    }
+  };
+
   searchInput.addEventListener('input', render);
   categorySelect.addEventListener('change', render);
+  refreshButton.addEventListener('click', refreshData);
 
+  fillCategories();
   render();
 };
 

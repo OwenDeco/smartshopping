@@ -30,7 +30,7 @@
           <input
             id="searchInput"
             type="search"
-            placeholder="e.g. milk, pasta, apples..."
+            placeholder="e.g. broccoli, carrot, cucumber..."
           />
         </div>
 
@@ -39,6 +39,16 @@
           <select id="categorySelect">
             <option value="all">All</option>
           </select>
+        </div>
+
+        <div class="actions">
+          <button id="refreshButton" class="refresh-button" type="button">
+            Refresh scraped dataset
+          </button>
+          <div id="loadingIndicator" class="loading hidden" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Scraping in progress…</span>
+          </div>
         </div>
 
         <div class="stats" id="stats"></div>
